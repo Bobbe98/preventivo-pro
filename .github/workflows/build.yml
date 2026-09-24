@@ -1,0 +1,98 @@
+name: Costruisci PreventivoPro
+
+# Parte da sola ogni volta che carichi o modifichi un file nel repository.
+# Si può anche avviare a mano da: Actions > Costruisci PreventivoPro > Run workflow
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # per pubblicare l'APK nelle Releases
+  pages: write      # per pubblicare la web app
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Estrai il progetto dallo zip
+        run: |
+          if [ -f PreventivoPro_flutter.zip ]; then
+            unzip -o -q PreventivoPro_flutter.zip
+          fi
+          test -f preventivo_pro/pubspec.yaml || { echo "Manca preventivo_pro/pubspec.yaml: hai caricato lo zip?"; exit 1; }
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepara Android e Web
+        working-directory: preventivo_pro
+        run: |
+          flutter create . --org it.bobbe98 --project-name preventivo_pro --platforms android,web
+          flutter pub get
+
+      - name: Test dei calcoli
+        working-directory: preventivo_pro
+        run: flutter test
+
+      - name: Costruisci APK
+        working-directory: preventivo_pro
+        run: flutter build apk --release
+
+      - name: Pubblica APK nelle Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp preventivo_pro/build/app/outputs/flutter-apk/app-release.apk PreventivoPro.apk
+          gh release create "v1.0.${{ github.run_number }}" PreventivoPro.apk \
+            --title "PreventivoPro build ${{ github.run_number }}" \
+            --notes "APK da installare sul telefono."
+
+      - name: Costruisci web app
+        working-directory: preventivo_pro
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: preventivo_pro/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+  run: flutter test
+
+      - name: Costruisci APK
+        working-directory: preventivo_pro
+        run: flutter build apk --release
+
+      - name: Pubblica APK nelle Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp preventivo_pro/build/app/outputs/flutter-apk/app-release.apk PreventivoPro.apk
+          gh release create "v1.0.${{ github.run_number }}" PreventivoPro.apk \
+            --title "PreventivoPro build ${{ github.run_number }}" \
+            --notes "APK da installare sul telefono."
+
+      - name: Costruisci web app
+        working-directory: preventivo_pro
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path
